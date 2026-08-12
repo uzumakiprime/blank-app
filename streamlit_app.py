@@ -2,7 +2,7 @@ import streamlit as st
 #import joblib
 import json
 import numpy as np
-
+import lightgbm as lgb
 # --------------------------------------------------
 # PAGE CONFIG
 # --------------------------------------------------
