@@ -71,11 +71,11 @@ def extract_features(record):
 # LOAD MODEL
 # --------------------------------------------------
 
-@st.cache_resource
-def load_model():
-    return joblib.load("apk_ember_lgbm.pkl")
+#@st.cache_resource
+#def load_model():
+#    return joblib.load("apk_ember_lgbm.pkl")
 
-model = load_model()
+model = lgb.Booster(model_file="EMBER2024_apk.model")
 
 # --------------------------------------------------
 # FILE UPLOAD
