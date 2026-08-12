@@ -75,7 +75,11 @@ def extract_features(record):
 #def load_model():
 #    return joblib.load("apk_ember_lgbm.pkl")
 
-model = lgb.Booster(model_file="EMBER2024_apk.model")
+@st.cache_resource
+def load_model():
+    return lgb.Booster(model_file="EMBER2024_apk.model")
+
+model = load_model()
 
 # --------------------------------------------------
 # FILE UPLOAD
@@ -103,11 +107,11 @@ if uploaded_file is not None:
 
         x = extract_features(record).reshape(1, -1)
 
-        prediction = model.predict(x)[0]
+        pred_prob = float(model.predict(x)[0])
 
-        probabilities = model.predict_proba(x)[0]
+        prediction = 1 if pred_prob >= 0.5 else 0
 
-        confidence = float(np.max(probabilities))
+        confidence = pred_prob if prediction == 1 else (1 - pred_prob)
 
         st.subheader("Prediction Result")
 
