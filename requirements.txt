@@ -1,3 +1,5 @@
 streamlit
 numpy
-lightgbm
+pandas
+scikit-learn
+joblib
