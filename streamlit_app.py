@@ -1,5 +1,62 @@
 import streamlit as st
 import joblib
+import json
+import numpy as np
+
+# --------------------------------------------------
+# FEATURE EXTRACTION
+# --------------------------------------------------
+
+def extract_features(record):
+
+    features = []
+
+    # Histogram (256)
+    features.extend(record["histogram"])
+
+    # Byte Entropy (256)
+    features.extend(record["byteentropy"])
+
+    # Strings
+    strings = record["strings"]
+
+    features.append(strings["numstrings"])
+    features.append(strings["avlength"])
+    features.append(strings["printables"])
+    features.append(strings["entropy"])
+
+    features.extend(strings["printabledist"])
+
+    string_counts = strings.get("string_counts", {})
+
+    features.append(string_counts.get("command", 0))
+    features.append(string_counts.get("create", 0))
+    features.append(string_counts.get("file", 0))
+    features.append(string_counts.get("http://", 0))
+    features.append(string_counts.get("ipv6_addr", 0))
+    features.append(string_counts.get("resource", 0))
+    features.append(string_counts.get("url", 0))
+    features.append(string_counts.get("window", 0))
+
+    # General
+    general = record["general"]
+
+    features.append(general["size"])
+    features.append(general["entropy"])
+    features.append(general["is_pe"])
+
+    start_bytes = general.get("start_bytes", [0, 0, 0, 0])
+
+    while len(start_bytes) < 4:
+        start_bytes.append(0)
+
+    features.extend(start_bytes[:4])
+
+    return np.array(features, dtype=np.float32)
+
+# --------------------------------------------------
+# PAGE
+# --------------------------------------------------
 
 st.set_page_config(
     page_title="APK Malware Detector",
@@ -8,13 +65,67 @@ st.set_page_config(
 
 st.title("🛡️ APK Malware Detector")
 
-try:
-    model = joblib.load("apk_ember_lgbm.pkl")
+# --------------------------------------------------
+# LOAD MODEL
+# --------------------------------------------------
 
-    st.success("Model loaded successfully!")
+@st.cache_resource
+def load_model():
+    return joblib.load("apk_ember_lgbm.pkl")
 
-    st.write("Model Type:")
-    st.code(str(type(model)))
+model = load_model()
 
-except Exception as e:
-    st.error(f"Error loading model: {e}")
+st.success("Model loaded successfully!")
+
+# --------------------------------------------------
+# UPLOAD JSON
+# --------------------------------------------------
+
+uploaded_file = st.file_uploader(
+    "Upload APK JSON Record",
+    type=["json", "jsonl"]
+)
+
+# --------------------------------------------------
+# PREDICTION
+# --------------------------------------------------
+
+if uploaded_file is not None:
+
+    try:
+
+        content = uploaded_file.read().decode("utf-8")
+
+        # JSONL -> first line
+        first_line = content.strip().split("\n")[0]
+
+        record = json.loads(first_line)
+
+        x = extract_features(record).reshape(1, -1)
+
+        pred = model.predict(x)[0]
+
+        prob = model.predict_proba(x)[0]
+
+        confidence = np.max(prob)
+
+        st.subheader("Prediction")
+
+        if pred == 1:
+            st.error(
+                f"🚨 Malware Detected\n\nConfidence: {confidence:.2%}"
+            )
+        else:
+            st.success(
+                f"✅ Benign File\n\nConfidence: {confidence:.2%}"
+            )
+
+        st.write("---")
+
+        st.write("### File Information")
+        st.write("SHA256:", record.get("sha256", "N/A"))
+        st.write("MD5:", record.get("md5", "N/A"))
+        st.write("File Type:", record.get("file_type", "N/A"))
+
+    except Exception as e:
+        st.error(f"Prediction Error: {e}")
